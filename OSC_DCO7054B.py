@@ -1,3 +1,6 @@
+'''TODO:
+функция, которая устанавливает шкалу и оффсет
+по данному пользователем минимумум и максимуму его сигнала '''
 import pyvisa
 import struct
 
@@ -52,3 +55,7 @@ class Osc:
 
     def set_offset(self, n_channel, scale, V_or_mV='mV'):
         self.my_instrument.write(':CHANnel' + str(n_channel) + ':OFFSet ' + str(scale) + V_or_mV)
+
+    def signal_in_window(self, n_channell, s_min, s_max):
+        window_size = s_max - s_min
+        self.set_data_scale()
