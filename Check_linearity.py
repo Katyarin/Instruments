@@ -1,7 +1,9 @@
 import OSC_DCO7054B
 import matplotlib.pyplot as plt
-
+import Control_CAEN
 osc = OSC_DCO7054B.Osc('192.168.10.104')
+caen = Control_CAEN()
+
 try:
     OSC_DCO7054B.Osc.set_data_scale(osc, 1, 250)
     OSC_DCO7054B.Osc.trigger_set(osc, 1, 0.5)
