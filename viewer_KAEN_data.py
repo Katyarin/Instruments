@@ -12,7 +12,7 @@ boards = [0]  # boards to be processed
 channels = [0, 1, 2, 3, 4, 5]  # channels to be processed
 invert = []  # channels to be inverted
 
-shotn = 238
+shotn = 241
 shot_folder = '%s%05d' % (path, shotn)
 
 
@@ -51,7 +51,7 @@ for board_idx in boards:
     sum_waveform[board_idx] = {}
     for ch in channels:
         sum_waveform[board_idx][ch] = [0] * 1400
-    ax1 = plt.subplot(len(boards), 1, boards.index(board_idx) + 1)
+    #ax1 = plt.subplot(len(boards), 1, boards.index(board_idx) + 1)
     shifted[board_idx] = []
     for event in data:
         shifted_event = {
@@ -112,12 +112,12 @@ for board_idx in boards:
                 for i in range(1400):
                     control_timeline[i] += local_timeline[i]
                         #number_elem += 1
-                plt.plot(start_timeline, shifted_event['channels'][ch_num])
+                #plt.plot(start_timeline, shifted_event['channels'][ch_num])
 
         shifted[board_idx].append(shifted_event)
-        plt.ylabel('signal, mV')
+        '''plt.ylabel('signal, mV')
         plt.xlabel('timeline, ns')
-        plt.title('Poly 1')
+        plt.title('Poly 1')'''
 
 '''
 print('writing file...')
@@ -164,14 +164,15 @@ for board_idx in boards:
 print('OK')
 plt.savefig('without_aver.png')
 
-plt.show()
-
+#plt.show()
+print('Канал, Амплитуда, Фронт, Спад, Ширина на полувысоте')
 #local_timeline = local_timeline + [0] * (1400 - len(local_timeline))
 for board_idx in boards:
     ax2 = plt.subplot(len(boards), 1, boards.index(board_idx) + 1)
     for i in range(len(control_timeline)):
         control_timeline[i] = control_timeline[i] / len(data) / 6
     for ch in channels:
+    #for ch in [3, 4]:
         #for i in range(200, 600):
         #base_line = sum(sum_waveform[board_idx][ch][200:600]) / len(sum_waveform[board_idx][ch][200:600])
         for i in range(len(sum_waveform[board_idx][ch])):
@@ -179,7 +180,30 @@ for board_idx in boards:
         base_line = sum(sum_waveform[board_idx][ch][200:600]) / len(sum_waveform[board_idx][ch][200:600])
         for i in range(len(sum_waveform[board_idx][ch])):
             sum_waveform[board_idx][ch][i] = sum_waveform[board_idx][ch][i] - base_line
-        plt.plot(control_timeline, sum_waveform[board_idx][ch], label='Channel' + str(ch + 1))
+        index_max = sum_waveform[board_idx][ch].index(max(sum_waveform[board_idx][ch]))
+        front_index, top_front_index = 0, 0
+        last_front_index, top_last_front_index = 0, 0
+        half1_index = 0
+        half2_index = 0
+        for i in range(600, index_max):
+            if sum_waveform[board_idx][ch][i - 1] < sum_waveform[board_idx][ch][index_max] * 0.1 <= sum_waveform[board_idx][ch][i]:
+                front_index = i
+            if sum_waveform[board_idx][ch][i - 1] < sum_waveform[board_idx][ch][index_max] * 0.9 <= sum_waveform[board_idx][ch][i]:
+                top_front_index = i
+            if sum_waveform[board_idx][ch][i - 1] < sum_waveform[board_idx][ch][index_max] * 0.5 <= sum_waveform[board_idx][ch][i]:
+                half1_index = i
+        for i in range(index_max, len(sum_waveform[board_idx][ch]) - 1):
+            if sum_waveform[board_idx][ch][i + 1] < sum_waveform[board_idx][ch][index_max] * 0.1 <= sum_waveform[board_idx][ch][i]:
+                last_front_index = i
+            if sum_waveform[board_idx][ch][i + 1] < sum_waveform[board_idx][ch][index_max] * 0.9 <= sum_waveform[board_idx][ch][i]:
+                top_last_front_index = i
+            if sum_waveform[board_idx][ch][i + 1] < sum_waveform[board_idx][ch][index_max] * 0.5 <= sum_waveform[board_idx][ch][i]:
+                half2_index = i
+        print(ch, max(sum_waveform[board_idx][ch]), control_timeline[top_front_index] - control_timeline[front_index],
+              control_timeline[last_front_index] - control_timeline[top_last_front_index], - control_timeline[half1_index] + control_timeline[half2_index])
+        plt.plot(control_timeline, sum_waveform[board_idx][ch], '+-', label='Channel' + str(ch + 1))
+        plt.scatter(control_timeline[half1_index], sum_waveform[board_idx][ch][half1_index], color='r')
+        plt.scatter(control_timeline[half2_index], sum_waveform[board_idx][ch][half2_index], color='g')
         plt.ylabel('signal, mV')
         plt.xlabel('timeline, ns')
         plt.title('Poly 1')
