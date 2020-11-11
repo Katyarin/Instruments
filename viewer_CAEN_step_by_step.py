@@ -3,6 +3,7 @@ import json
 import ijson
 import itertools
 import os
+import numpy as np
 
 path = 'c:/work/Data/Polychromators/2020.11.05/'
 HEADER_FILE = 'header'
@@ -16,9 +17,15 @@ ch_count = 2
 file_num = '00' + str(shotn)
 front_threshold = 100
 
+M = 100
+el_charge = 1.6 * 10 ** (-19)
+G = 10
+R_sv = 10000 #Ом
+
 channels = [0]
 Poly = [i for i in range(1, 11)]
 invert = []  # channels to be inverted
+need_num_events = None
 
 def get_event(shotn, board_id):
     global board_file
@@ -31,7 +38,7 @@ def get_event(shotn, board_id):
         return {}
     board_file = open('%s/%d.%s' % (shot_path, board_id, FILE_EXT), 'rb')
     objects = ijson.items(board_file, 'item', use_float=True)
-    return itertools.islice(objects, 0, None)
+    return itertools.islice(objects, 0, need_num_events)
 
 def get_shot(shotn):
     shot_path = '%s%s' % (path, shotn)
@@ -87,21 +94,28 @@ number_events = {}
 timestamps = get_shot(file_num)  # This reads all files to count total events.
 
 board = - 1
-
+N_photo_el = {}
 for element in range(10):
     sum_waveform = {}
     shifted = {}
+    N_photo_el[element] = {}
     control_timeline = [0] * 2000
     number_elem = 0
     ch_new = [0] + [1, 2, 3, 6, 5] * 3
 
     fig1 = plt.figure()
-    ax1 = fig1.add_subplot(1, 1, 1)
+    ax1 = fig1.add_subplot(2, 1, 1)
     ax1.grid()
-    ax1.set_title('Poly №' + str(element + 1))
+    if element == 0:
+        ax1.set_title('Poly №1A')
+    elif element == 1:
+        ax1.set_title('Poly №1B')
+    else:
+        ax1.set_title('Poly №' + str(element))
+    #ax1.set_title('Poly №' + str(element + 1))
     ax1.set_ylabel('signal, mV')
     ax1.set_xlabel('timeline, ns')
-    # ax1.set_xlim(-20, 120)
+    ax1.set_xlim(30, 100)
     ax1.set_ylim(0, 700)
 
     n = (Poly[element] - 1) % 3
@@ -109,7 +123,10 @@ for element in range(10):
         board += 1
     channels =[0] + [i + 5 * n for i in range(1, 2)]
     #for board in boards:
-    number_events[board] = len(timestamps[board])
+    if need_num_events == None:
+        number_events[board] = len(timestamps[board])
+    else:
+        number_events[board] = need_num_events
     print('Board %d recordered %d events.' % (board, len(timestamps[board])))
 
     board_idx = board
@@ -121,7 +138,9 @@ for element in range(10):
     # ax2 = fig.add_subplot(122)
     shifted[board_idx] = []
 
+    event_log = 0
     for event in get_event(file_num, board_idx):
+        event_log += 1
         shifted_event = {
             'timeline': [],
             'channels': {},
@@ -170,7 +189,9 @@ for element in range(10):
                         shifted_event['channels'][ch_num].append(event['groups'][group_idx]['data'][ch_idx][i])
                         sum_waveform[board_idx][ch_new[ch_num]][i + delta_t] += event['groups'][group_idx]['data'][ch_idx][i]
                         #control_timeline[i - index_difference] += local_timeline[i]
-
+                if event_log == 1:
+                    N_photo_el[element][ch_new[ch_num]] = []
+                #print(N_photo_el[element][ch_new[ch_num]])
                 base_line_first = sum(shifted_event['channels'][ch_num][0:200]) / len(shifted_event['channels'][ch_num][0:200])
                 for i in range(delta_t):
                     sum_waveform[board_idx][ch_new[ch_num]][i] += base_line_first
@@ -183,10 +204,28 @@ for element in range(10):
                         #number_elem += 1
                 if ch_num != 0:
                     ax1.plot(start_timeline, shifted_event['channels'][ch_num])
+                    for i in range(len(shifted_event['channels'][ch_num])):
+                        shifted_event['channels'][ch_num][i] = (shifted_event['channels'][ch_num][i] - base_line_first) / 1000
+                        start_timeline[i] = start_timeline[i] * (10 ** (-9))
+                    N_photo_el[element][ch_new[ch_num]].append(np.trapz(shifted_event['channels'][ch_num][550:800], start_timeline[550:800]) / (M * el_charge * G * R_sv * 0.5))
         shifted[board_idx].append(shifted_event)
-    #plt.savefig(str(element + 1) + '_180.png')
+
     #plt.savefig('180_1_2.png', dpi=600)
-    plt.show()
+    #plt.show()
+    for ch in N_photo_el[element].keys():
+        if ch != 0:
+            print(element, ch, sum(N_photo_el[element][ch]) / len(N_photo_el[element][ch]))
+    ax3 = fig1.add_subplot(2, 1, 2)
+    ax3.grid()
+    '''if element == 0:
+        ax3.set_title('Poly №1A')
+    elif element == 1:
+        ax3.set_title('Poly №1B')
+    else:
+        ax3.set_title('Poly №' + str(element))'''
+    ax3.hist(N_photo_el[element][1], 100)
+    #plt.show()
+    plt.savefig(str(element) + '_with_displot.png')
     print('OK')
 
     #print('Канал, Амплитуда, Фронт, Спад, Ширина на полувысоте')
@@ -245,9 +284,9 @@ for element in range(10):
         ax2.set_xlabel('time, ns')
         ax2.set_title('Averaged from ' + str(number_events[board_idx]))
         ax2.legend()
-        #ax2.set_ylim(-800, 100)
-        #ax2.set_xlim(-10, 130)
+        ax2.set_xlim(30, 100)
+        ax2.set_ylim(0, 700)
 
-    #plt.savefig('270_5_11_20_averaged.png', dpi=600)
-    plt.show()
+    plt.savefig(str(element) + '_averaged.png', dpi=600)
+    #plt.show()
 board_file.close()
