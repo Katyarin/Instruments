@@ -79,11 +79,25 @@ def find_rising(signal, is_trigger):
             return i - (local_threshold + signal[i]) / (signal[i + 1] - signal[i])
     return -1
 
+def find_start_integration(signal):
+    maximum = signal.index(max(signal))
+    for i in range(0, maximum):
+        if signal[maximum - i] > 0 and signal[maximum - i - 1] <= 0:
+            return maximum - i - 1
+
+def find_end_integration(signal):
+    maximum = signal.index(max(signal))
+    for i in range(maximum, len(signal) - 1):
+        if signal[i] > 0 and signal[i + 1] <= 0:
+            return i + 1
+
 with open('%s/header.json' % shot_folder, 'r') as header:
     data = json.load(header)
     # board_count = len(data['boards'])
     freq = float(data['frequency'])  # GS/s
+    print(freq)
     time_step = 1 / freq  # nanoseconds
+    print(time_step)
     event_len = data['eventLength']
     trigger_threshold = data['triggerThreshold']
     timeline_prototype = [0]
@@ -103,7 +117,7 @@ for element in range(10):
     number_elem = 0
     ch_new = [0] + [1, 2, 3, 6, 5] * 3
 
-    fig1 = plt.figure()
+    fig1 = plt.figure(figsize=(8, 8))
     ax1 = fig1.add_subplot(2, 1, 1)
     ax1.grid()
     if element == 0:
@@ -203,11 +217,14 @@ for element in range(10):
                         control_timeline[i] += local_timeline[i]
                         #number_elem += 1
                 if ch_num != 0:
-                    ax1.plot(start_timeline, shifted_event['channels'][ch_num])
+                    ax1.plot(start_timeline, shifted_event['channels'][ch_num], alpha=0.3)
                     for i in range(len(shifted_event['channels'][ch_num])):
                         shifted_event['channels'][ch_num][i] = (shifted_event['channels'][ch_num][i] - base_line_first) / 1000
                         start_timeline[i] = start_timeline[i] * (10 ** (-9))
-                    N_photo_el[element][ch_new[ch_num]].append(np.trapz(shifted_event['channels'][ch_num][550:800], start_timeline[550:800]) / (M * el_charge * G * R_sv * 0.5))
+                    start_index = find_start_integration(shifted_event['channels'][ch_num])
+                    end_index = find_end_integration(shifted_event['channels'][ch_num])
+                    #print(element, start_index, end_index)
+                    N_photo_el[element][ch_new[ch_num]].append(np.trapz(shifted_event['channels'][ch_num][start_index:end_index], start_timeline[start_index:end_index]) / (M * el_charge * G * R_sv * 0.5))
         shifted[board_idx].append(shifted_event)
 
     #plt.savefig('180_1_2.png', dpi=600)
@@ -223,9 +240,9 @@ for element in range(10):
         ax3.set_title('Poly №1B')
     else:
         ax3.set_title('Poly №' + str(element))'''
-    ax3.hist(N_photo_el[element][1], 100)
+    ax3.hist(N_photo_el[element][1], 100, alpha=0.5)
     #plt.show()
-    plt.savefig(str(element) + '_with_displot.png')
+    plt.savefig(str(element) + '_with_displot.png', dpi=600)
     print('OK')
 
     #print('Канал, Амплитуда, Фронт, Спад, Ширина на полувысоте')
